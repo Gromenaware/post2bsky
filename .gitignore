@@ -5,6 +5,7 @@ config.json
 /config.json
 /path/
 /.idea/
+.vscode/
 *.log
 *.png
 *.json
