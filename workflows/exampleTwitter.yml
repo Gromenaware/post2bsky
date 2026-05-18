@@ -76,6 +76,12 @@ jobs:
           "${VENV_DIR}/bin/python" -m playwright install chromium
           "${VENV_DIR}/bin/python" -m playwright install-deps chromium
 
+      # ── Restore state────────────────────────────────────────────────
+      - name: Restore previous state
+        uses: actions/download-artifact@v4
+        with:
+          name: twitter2bsky_state.json
+      
       # ── Run Script ──────────────────────────────────────────────────
       - name: Run twitter2bsky
         env:
