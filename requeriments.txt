@@ -1,0 +1,12 @@
+atproto
+tweety-ns
+playwright
+httpx
+arrow
+python-dotenv
+moviepy
+fastfeedparser
+beautifulsoup4
+charset-normalizer
+Pillow
+grapheme

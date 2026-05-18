@@ -1,0 +1,111 @@
+# .github/workflows/twitter2bsky.yml
+
+name: Twitter → Bluesky Sync
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # Every 30 minutes (Jenkins: H/30)
+  workflow_dispatch:          # Manual trigger equivalent
+
+concurrency:
+  group: twitter2bsky         # Equivalent to disableConcurrentBuilds()
+  cancel-in-progress: false   # Queue, don't cancel
+
+jobs:
+  sync:
+    name: Run twitter2bsky
+    runs-on: ubuntu-latest
+    timeout-minutes: 20       # Equivalent to timeout(time: 20, unit: 'MINUTES')
+
+    env:
+      VENV_DIR: venv
+      PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
+      PYTHONUNBUFFERED: '1'
+
+    steps:
+      # ── Checkout Code ──────────────────────────────────────────────
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ── Cache pip dependencies ──────────────────────────────────────
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.pip-cache
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      # ── Setup Python ────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── Setup Python & Install Dependencies ─────────────────────────
+      - name: Install Dependencies
+        run: |
+          set -euxo pipefail
+
+          python3 -m venv "${VENV_DIR}"
+
+          "${VENV_DIR}/bin/python" -m pip install --upgrade pip wheel setuptools
+
+          "${VENV_DIR}/bin/pip" install --cache-dir "${PIP_CACHE_DIR}" -U \
+            atproto \
+            tweety-ns \
+            playwright \
+            httpx \
+            arrow \
+            python-dotenv \
+            moviepy \
+            fastfeedparser \
+            beautifulsoup4 \
+            charset-normalizer \
+            Pillow \
+            grapheme
+
+          # Verify required imports
+          "${VENV_DIR}/bin/python" -c "import fastfeedparser; print('fastfeedparser OK')"
+          "${VENV_DIR}/bin/python" -c "import moviepy; print('moviepy OK')"
+
+          # Check FFmpeg (pre-installed on ubuntu-latest)
+          ffmpeg -version
+
+          # Install Playwright browser binaries
+          "${VENV_DIR}/bin/python" -m playwright install chromium
+          "${VENV_DIR}/bin/python" -m playwright install-deps chromium
+
+      # ── Run Script ──────────────────────────────────────────────────
+      - name: Run twitter2bsky
+        env:
+          TWITTER_USERNAME:  ${{ secrets.TWITTER_USERNAME }}
+          TWITTER_PASSWORD:  ${{ secrets.TWITTER_PASSWORD }}
+          TWITTER_EMAIL:     ${{ secrets.TWITTER_EMAIL }}
+          TWITTER_HANDLE:    ${{ secrets.TWITTER_HANDLE }}
+          BSKY_HANDLE:       ${{ secrets.BSKY_HANDLE }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
+        run: |
+          set -euxo pipefail
+
+          "${VENV_DIR}/bin/python" twitter2bsky.py \
+            --twitter-username "$TWITTER_USERNAME" \
+            --twitter-password "$TWITTER_PASSWORD" \
+            --twitter-email    "$TWITTER_EMAIL" \
+            --twitter-handle   "$TWITTER_HANDLE" \
+            --bsky-handle      "$BSKY_HANDLE" \
+            --bsky-password    "$BSKY_APP_PASSWORD" \
+            --bsky-base-url    https://eurosky.social \
+            --bsky-langs       ca
+
+      # ── Post: Archive artifacts ──────────────────────────────────────
+      - name: Archive logs and JSON artifacts
+        if: always()           # Equivalent to post { always { ... } }
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-artifacts-${{ github.run_number }}
+          path: |
+            *.log
+            *.json
+          if-no-files-found: ignore   # Equivalent to allowEmptyArchive: true
+          retention-days: 14          # Keep last ~10 runs worth (adjust as needed)

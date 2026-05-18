@@ -1,0 +1,23 @@
+name: RSS to BSKY
+description: "A GitHub Action to post RSS feed items to Bluesky (BSKY) using a Python script."
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'  # every 30 minutes
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install atproto fastfeedparser beautifulsoup4 httpx arrow charset-normalizer
+      - name: Run script
+        run: |
+          python3 rss2bsky.py https://cr-news-api-service.prd.crunchyrollsvc.com/v1/es-ES/rss ${{ secrets.BSKY_HANDLE }} ${{ secrets.BSKY_USERNAME }} ${{ secrets.BSKY_APP_PASSWORD }}

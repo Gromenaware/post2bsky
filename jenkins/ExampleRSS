@@ -1,0 +1,70 @@
+# .github/workflows/rss2bsky.yml
+
+name: RSS → Bluesky Sync
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # Every 30 minutes (Jenkins: H/30)
+  workflow_dispatch:          # Manual trigger
+
+concurrency:
+  group: rss2bsky             # Equivalent to disableConcurrentBuilds()
+  cancel-in-progress: false   # Queue, don't cancel
+
+jobs:
+  sync:
+    name: Run rss2bsky
+    runs-on: ubuntu-latest
+    timeout-minutes: 15       # Equivalent to timeout(time: 15, unit: 'MINUTES')
+
+    steps:
+      # ── Checkout Code ──────────────────────────────────────────────
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # ── Cache pip dependencies ──────────────────────────────────────
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      # ── Setup Python ────────────────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── Install Dependencies ─────────────────────────────────────────
+      - name: Install Dependencies
+        run: |
+          set -euxo pipefail
+
+          python3 -m venv venv
+          venv/bin/pip install --upgrade pip
+          venv/bin/pip install -U \
+            atproto \
+            fastfeedparser \
+            beautifulsoup4 \
+            httpx \
+            arrow \
+            charset-normalizer \
+            Pillow
+
+      # ── Run Script ──────────────────────────────────────────────────
+      - name: Run rss2bsky
+        env:
+          BSKY_HANDLE:       ${{ secrets.BSKY_HANDLE }}
+          BSKY_USERNAME:     ${{ secrets.BSKY_USERNAME }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
+        run: |
+          set -euxo pipefail
+
+          venv/bin/python rss2bsky.py \
+            "https://api.3cat.cat/noticies?_format=rss&origen=frontal&frontal=n324-portada-noticia&version=2.0" \
+            "$BSKY_HANDLE" \
+            "$BSKY_USERNAME" \
+            "$BSKY_APP_PASSWORD" \
+            --service "https://eurosky.social"
