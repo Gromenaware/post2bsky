@@ -227,14 +227,9 @@ post2bsky/
 
 ## 👤 Autor
 [Guillem Hernández Sola](https://www.linkedin.com/in/guillemhs/)
-
-[Màster en Ciberseguretat i Privadesa (UOC)](https://www.uoc.edu/ca/estudis/masters/master-universitari-ciberseguretat-privadesa-landmkt?esl-k=google-ads%7Cng%7Cc570858264445%7Cmp%7Ckmaster%20uoc%20ciberseguretat%7Cp%7Ct%7Cdc%7Ca133062043564%7Cg15285581959&utm_medium=cpc&utm_source=googlebrand&utm_campaign=cap_mu_ca&utm_term=master%20uoc%20ciberseguretat&gad_source=1&gad_campaignid=15285581959&gbraid=0AAAAAD_RHGJbHzGmeCevXcHUrxTK9xoeb&gclid=Cj0KCQiAubrJBhCbARIsAHIdxD8aL4fFCIP_pQ7_jvgkuWAB4XQah0Isn8MqZnRzV4vDBwUNhYivFeMaAl_yEALw_wcB)
-
 [GitHub: @guillemhs](https://github.com/guillemhs)
 
 ## 📄 Llicència
-
-Aquest repositori forma part de l'avaluació acadèmica de la Universitat Oberta de Catalunya. Els models i scripts s'han d'utilitzar únicament amb finalitats de recerca i auditoria ètica.
 
 Aquest codi és alliberat al domini públic per [Guillem Hernández Sola](https://www.linkedin.com/in/guillemhs/) sota llicència Creative Commons Reconeixement-NoComercial 4.0 Internacional (CC BY-NC 4.0).  
 
