@@ -1,0 +1,166 @@
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 20, unit: 'MINUTES')
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        disableConcurrentBuilds()
+    }
+
+    triggers {
+        cron('H/30 * * * *')
+    }
+
+    stages {
+
+        // ─────────────────────────────────────────────
+        //  1. Checkout
+        // ─────────────────────────────────────────────
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        //  2. Python env + dependencies
+        // ─────────────────────────────────────────────
+        stage('Setup Python & Install Dependencies') {
+            steps {
+                sh '''
+                    set -e
+
+                    # ── Create venv ────────────────────────────────────
+                    python3 -m venv venv
+
+                    # ── Upgrade pip toolchain ──────────────────────────
+                    . venv/bin/activate
+                    pip install --upgrade pip wheel setuptools
+
+                    # ── Core dependencies ──────────────────────────────
+                    pip install -U \
+                        atproto \
+                        playwright \
+                        playwright-stealth \
+                        httpx \
+                        arrow \
+                        python-dotenv \
+                        moviepy \
+                        beautifulsoup4 \
+                        charset-normalizer \
+                        Pillow \
+                        grapheme
+
+                    # ── yt-dlp: always upgrade to latest ──────────────
+                    # TikTok extractor breaks frequently — latest is required
+                    pip install --upgrade yt-dlp
+                    pip show yt-dlp | grep -E "^(Name|Version)"
+
+                    # ── curl_cffi: TikTok impersonation (REQUIRED) ─────
+                    # Without this yt-dlp cannot bypass TikTok bot detection
+                    pip install --upgrade curl-cffi
+                    pip show curl-cffi | grep -E "^(Name|Version)"
+                    python3 -c "import curl_cffi; print('curl_cffi  OK')"
+
+                    # ── playwright-stealth version check ───────────────
+                    pip show playwright-stealth | grep -E "^(Name|Version)"
+                    python3 -c "
+try:
+    from playwright_stealth import stealth_sync
+    print('playwright_stealth OK (v1.x - stealth_sync)')
+except ImportError:
+    from playwright_stealth import Stealth
+    print('playwright_stealth OK (v2.x - Stealth class)')
+"
+
+                    # ── Sanity checks ──────────────────────────────────
+                    python3 -c "import atproto;    print('atproto    OK')"
+                    python3 -c "import playwright;  print('playwright OK')"
+                    python3 -c "import yt_dlp;      print('yt_dlp     OK')"
+                    python3 -c "import httpx;       print('httpx      OK')"
+                    python3 -c "import arrow;       print('arrow      OK')"
+                    python3 -c "import moviepy;     print('moviepy    OK')"
+
+                    # ── System tools ───────────────────────────────────
+                    ffmpeg  -version | head -1
+                    ffprobe -version | head -1
+
+                    # ── Playwright browser binaries ────────────────────
+                    playwright install chromium
+                '''
+            }
+        }
+
+        // ─────────────────────────────────────────────
+        //  3. Run the bot
+        // ─────────────────────────────────────────────
+        stage('Run Script') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'TIKTOK_HANDLE',
+                        variable:      'TIKTOK_HANDLE'
+                    ),
+                    string(
+                        credentialsId: 'BSKY_HANDLE',
+                        variable:      'BSKY_HANDLE'
+                    ),
+                    string(
+                        credentialsId: 'BSKY_APP_PASSWORD',
+                        variable:      'BSKY_APP_PASSWORD'
+                    ),
+                    file(
+                        credentialsId: 'TIKTOK_COOKIES_JSON',
+                        variable:      'TIKTOK_COOKIES_FILE'
+                    )
+                ]) {
+                    sh '''
+                        set -e
+
+                        # Inject the secret cookies file into the workspace
+                        cp "$TIKTOK_COOKIES_FILE" tiktok_cookies.json
+
+                        . venv/bin/activate
+                        python3 tiktok2bsky.py \
+                            --tiktok-handle     "$TIKTOK_HANDLE" \
+                            --bsky-handle       "$BSKY_HANDLE" \
+                            --bsky-app-password "$BSKY_APP_PASSWORD" \
+                            --bsky-base-url     https://eurosky.social \
+                            --bsky-langs        es \
+                            --cookies-path      tiktok_cookies.json
+                    '''
+                }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    //  Post actions
+    // ─────────────────────────────────────────────
+    post {
+
+        always {
+            // Archive logs, state, and any debug screenshots
+            archiveArtifacts(
+                artifacts:         '*.log, *.json, screenshot_*.png',
+                allowEmptyArchive: true
+            )
+
+            // Remove injected cookies file — never leave on disk between runs
+            sh 'rm -f tiktok_cookies.json || true'
+        }
+
+        success {
+            echo '✅ Sync cycle completed successfully.'
+        }
+
+        failure {
+            echo '❌ Sync cycle failed — check archived logs and screenshots.'
+        }
+
+        unstable {
+            echo '⚠️ Sync cycle finished with warnings.'
+        }
+    }
+}
